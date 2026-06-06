@@ -9,7 +9,7 @@ function Navbar() {
     <nav className="navbar">
       <div className="logo">
         <Link to="/">
-          <span className="logo-text">Prepare.sh Book Shop</span>
+          <span className="logo-text">Mighty Hands 💪 Book Shop</span>
         </Link>
       </div>
       

@@ -6,13 +6,13 @@ function Footer() {
     <footer className="footer">
       <div className="footer-content">
         <div className="footer-section">
-          <h3>Prepare.sh Book Shop</h3>
+          <h3>Mighty Hands Book Shop</h3>
           <p>Your premier destination for Classic literature and beyond.</p>
         </div>
         <div className="footer-section">
           <h3>Contact</h3>
-          <p>Email: info@prepare.sh</p>
-          <p>Phone: +1 123-456-7890</p>
+          <p>Email: info@mightyhands.com</p>
+          <p>Phone: +44 079-456-7890</p>
         </div>
         <div className="footer-section">
           <h3>Hours</h3>
