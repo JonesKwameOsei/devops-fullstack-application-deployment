@@ -1,74 +1,107 @@
-# Getting Started with Create React App
+# Bookstore UI
 
-This project was written in [React](https://github.com/facebook/create-react-app).
+React frontend for the Mighty Hands Book Shop. Communicates with the [Flask API](../api/README.md) running on port 5000.
 
+## Requirements
 
-## How to Setup and Run the Frontend Locally
+- Node.js 18+
+- API running at `http://127.0.0.1:5000` (see [api/README.md](../api/README.md))
 
-In the project directory, you can run:
+## Running locally
 
-### `npm start`
+**1. Install dependencies**
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+```bash
+cd ui
+npm install
+```
 
-![bookshop-ui](../images/ui-1.png)
+**2. Start the dev server**
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+```bash
+npm start
+```
 
-### `npm test`
+Opens at [http://localhost:3000](http://localhost:3000). The page hot-reloads on file saves.
 
-Launches the test runner in the interactive watch mode. All tests passes.
+## Available scripts
 
-![ui-test](../images/ui-test.png)
+| Script | Description |
+|--------|-------------|
+| `npm start` | Start the development server |
+| `npm test` | Run the test suite |
+| `npm run lint` | Run ESLint across `src/` |
+| `npm run build` | Build optimised production bundle to `build/` |
 
-### `npm run build`
+## Pre-commit hooks (shift-left)
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Static analysis with [ESLint](https://eslint.org/) runs automatically before every commit, enforcing React best practices and catching bugs before they reach CI.
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+ESLint is already bundled with `react-scripts` — no extra install needed.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+**Install the git hook** (one-time, from the repo root — shared with the API hook):
 
-### `npm run eject`
+```bash
+pre-commit install
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+**Output:**
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+```bash
+pre-commit installed at .git/hooks/pre-commit
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+From that point on, every `git commit` will run ESLint alongside the API's pyright check:
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+| Hook | Scope | What it catches |
+|------|-------|-----------------|
+| `eslint` | `ui/src/**/*.{js,jsx}` | React rule violations, undefined variables, unused imports, hooks misuse |
+| `pyright` | `api/` | Python type errors |
+| `trailing-whitespace` | all files | Trailing spaces |
+| `end-of-file-fixer` | all files | Missing newline at end of file |
+| `check-yaml` / `check-json` | all files | Config syntax errors |
+| `debug-statements` | Python files | Accidental `pdb`/`breakpoint()` |
 
-<!-- ## Learn More
+**Run lint manually at any time:**
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+```bash
+npm run lint
+```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+The `--max-warnings 0` flag is set, so warnings are treated as errors — the commit is blocked unless ESLint exits fully clean.
 
-### Code Splitting
+### Baseline result
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+ESLint was clean on the initial codebase:
 
-### Analyzing the Bundle Size
+```
+✔ ESLint passed with 0 errors, 0 warnings
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+The ESLint config extends CRA's `react-app` ruleset (configured in `package.json` under `eslintConfig`) which covers:
 
-### Making a Progressive Web App
+- React hooks rules (`exhaustive-deps`, rules of hooks)
+- JSX best practices
+- No unused variables
+- No undefined variables
+- Import/export correctness
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+## Testing
 
-### Advanced Configuration
+```bash
+npm test
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+Runs the test suite once (non-interactive):
 
-### Deployment
+```bash
+npm test -- --watchAll=false
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+## Production build
 
-### `npm run build` fails to minify
+```bash
+npm run build
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify) -->
+Outputs an optimised, minified bundle to `build/`. Filenames include content hashes for cache-busting.

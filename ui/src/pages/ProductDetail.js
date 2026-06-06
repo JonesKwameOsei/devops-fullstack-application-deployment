@@ -7,7 +7,7 @@ function ProductDetail() {
   const [book, setBook] = useState(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
-  
+
   useEffect(() => {
     setLoading(true);
     fetch(`/api/products/${productId}`)
@@ -60,15 +60,15 @@ function ProductDetail() {
         <h1>{book.name}</h1>
         <h2>by {book.author}</h2>
         <p className="price">${book.price.toFixed(2)}</p>
-        
+
         <div className="book-description">
           <h3>Description</h3>
           <p>{book.description}</p>
         </div>
-        
+
         <div className="book-meta">
           <div className="meta-item">
-            <span>Category:</span> 
+            <span>Category:</span>
             <Link to={`/category/${book.categoryId}`}>{book.category}</Link>
           </div>
           <div className="meta-item">
@@ -78,10 +78,10 @@ function ProductDetail() {
             <span>Published:</span> {book.published}
           </div>
         </div>
-        
+
         <div className="purchase-options">
           <div className="quantity-selector">
-            <button 
+            <button
               onClick={() => setQuantity(Math.max(1, quantity - 1))}
               disabled={quantity <= 1}
             >−</button>

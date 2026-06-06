@@ -11,9 +11,16 @@ repos:
   - repo: local
     hooks:
       - id: pyright
-        name: pyright
+        name: pyright (api)
         entry: pyright
         language: system
         types: [python]
         pass_filenames: false
         args: ["--project", "api/pyrightconfig.json", "api/"]
+
+      - id: eslint
+        name: eslint (ui)
+        entry: bash -c 'cd ui && node_modules/.bin/eslint src/ --max-warnings 0'
+        language: system
+        files: ^ui/src/.*\.(js|jsx)$
+        pass_filenames: false

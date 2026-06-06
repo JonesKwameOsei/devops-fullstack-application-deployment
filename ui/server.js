@@ -14,10 +14,10 @@ const server = http.createServer((req, res) => {
       target: API_URL,
       changeOrigin: true,
     });
-    
+
     return proxy(req, res);
   }
-  
+
   // Otherwise serve static files
   return handler(req, res, {
     public: 'build',

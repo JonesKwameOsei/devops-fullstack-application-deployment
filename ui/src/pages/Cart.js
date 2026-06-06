@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 function Cart() {
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   useEffect(() => {
     setLoading(true);
     // Updated to use relative URL
@@ -19,7 +19,7 @@ function Cart() {
 
   const updateQuantity = (itemId, newQuantity) => {
     if (newQuantity < 1) return;
-    
+
     // Updated to use relative URL
     fetch(`/api/cart/update`, {
       method: 'POST',
@@ -31,7 +31,7 @@ function Cart() {
         quantity: newQuantity
       }),
     }).then(() => {
-      setCartItems(cartItems.map(item => 
+      setCartItems(cartItems.map(item =>
         item.id === itemId ? {...item, quantity: newQuantity} : item
       ));
     });
@@ -63,7 +63,7 @@ function Cart() {
   return (
     <div className="cart">
       <h1>Your Shopping Cart</h1>
-      
+
       {cartItems.length === 0 ? (
         <div className="empty-cart">
           <p>Your cart is empty</p>
@@ -96,7 +96,7 @@ function Cart() {
               </div>
             ))}
           </div>
-          
+
           <div className="cart-summary">
             <div className="summary-row">
               <span>Subtotal:</span>

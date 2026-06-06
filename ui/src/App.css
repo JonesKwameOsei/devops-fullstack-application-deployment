@@ -558,7 +558,7 @@ blockquote cite {
   .mobile-menu-button {
     display: block;
   }
-  
+
   .nav-links {
     position: absolute;
     top: 100%;
@@ -571,20 +571,20 @@ blockquote cite {
     box-shadow: 0 5px 10px rgba(0,0,0,0.1);
     display: none;
   }
-  
+
   .nav-links.open {
     display: flex;
   }
-  
+
   .product-detail {
     grid-template-columns: 1fr;
     gap: 30px;
   }
-  
+
   .book-image {
     text-align: center;
   }
-  
+
   .cart-item {
     grid-template-columns: 80px 2fr 1fr;
     grid-template-areas:
@@ -592,24 +592,24 @@ blockquote cite {
       "image quantity total";
     gap: 10px;
   }
-  
+
   .item-image {
     grid-area: image;
   }
-  
+
   .item-details {
     grid-area: details;
   }
-  
+
   .remove-item {
     grid-area: remove;
     justify-self: end;
   }
-  
+
   .item-quantity {
     grid-area: quantity;
   }
-  
+
   .item-total {
     grid-area: total;
     justify-self: end;

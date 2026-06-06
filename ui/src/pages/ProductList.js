@@ -7,15 +7,15 @@ function ProductList() {
   const [books, setBooks] = useState([]);
   const [category, setCategory] = useState({});
   const [loading, setLoading] = useState(true);
-  
+
   useEffect(() => {
     setLoading(true);
-    
+
     // Updated to use relative URLs
     fetch(`/api/categories/${categoryId}`)
       .then(res => res.json())
       .then(data => setCategory(data));
-    
+
     fetch(`/api/categories/${categoryId}/products`)
       .then(res => res.json())
       .then(data => {
@@ -34,7 +34,7 @@ function ProductList() {
         <h1>{category.name}</h1>
         <p>{category.description}</p>
       </div>
-      
+
       {books.length === 0 ? (
         <p className="no-books">No books found in this category.</p>
       ) : (
