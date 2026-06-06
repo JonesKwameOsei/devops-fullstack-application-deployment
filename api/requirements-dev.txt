@@ -1,0 +1,4 @@
+# dev-only — not installed in the container image
+-r requirements.txt
+pre-commit
+pyright

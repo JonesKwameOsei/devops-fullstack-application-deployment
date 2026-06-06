@@ -1,0 +1,13 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+*.env
+.git/
+.gitignore
+README.md
+requirements-dev.txt
+pyrightconfig.json
+.pre-commit-config.yaml
