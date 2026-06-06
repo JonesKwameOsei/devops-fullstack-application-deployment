@@ -62,6 +62,10 @@ From that point on, every `git commit` will run ESLint alongside the API's pyrig
 | `check-yaml` / `check-json` | all files | Config syntax errors |
 | `debug-statements` | Python files | Accidental `pdb`/`breakpoint()` |
 
+ESLint passed on commit:
+
+![eslint-pass](../images/eslint-pass.png)
+
 **Run lint manually at any time:**
 
 ```bash
