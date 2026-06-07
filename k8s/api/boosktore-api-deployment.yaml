@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bookstore-api
+  namespace: bookstore
+  labels:
+    app: bookstore-api
+    component: api
+    version: "1.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bookstore-api
+  template:
+    metadata:
+      labels:
+        app: bookstore-api
+        component: api
+        version: "1.0.0"
+    spec:
+      # Do not mount service account token — API has no reason to talk to Kubernetes API
+      automountServiceAccountToken: false
+
+      securityContext:
+        runAsNonRoot: true          # Kyverno: disallow-root-containers
+        seccompProfile:             # PSS Restricted: required seccomp profile
+          type: RuntimeDefault
+
+      containers:
+        - name: bookstore-api
+          image: ghcr.io/joneskwameosei/bookstore-api:1.0.0   # Kyverno: disallow-latest-tag
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5000
+              protocol: TCP
+
+          # Kyverno: require-resource-limits
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+
+          securityContext:
+            runAsNonRoot: true                    # Kyverno: disallow-root-containers
+            allowPrivilegeEscalation: false       # Kyverno: disallow-privilege-escalation
+            privileged: false                     # Kyverno: disallow-privileged-containers
+            readOnlyRootFilesystem: true          # Falco: prevents writes outside mounts
+            capabilities:
+              drop:
+                - ALL                             # Kyverno: require-drop-all-capabilities
+
+          # Liveness: restart the pod if gunicorn stops responding
+          livenessProbe:
+            httpGet:
+              path: /api/categories
+              port: 5000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+
+          # Readiness: only route traffic once the app is ready
+          readinessProbe:
+            httpGet:
+              path: /api/categories
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          volumeMounts:
+            # readOnlyRootFilesystem: gunicorn needs /tmp for worker temp files
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+
+      # Uncomment once the GHCR package is set to private:
+      # imagePullSecrets:
+      #   - name: ghcr-credentials

@@ -1,0 +1,75 @@
+# Default deny — all ingress and egress blocked unless explicitly allowed below.
+# Applied to the entire bookstore namespace (empty podSelector = all pods).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: bookstore
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+
+# Allow the API pod to receive traffic from UI pods on port 5000,
+# and to send DNS queries to the homelab CoreDNS resolver (session 12).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: bookstore-api-allow
+  namespace: bookstore
+spec:
+  podSelector:
+    matchLabels:
+      app: bookstore-api
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    # Accept API calls from the UI pods within the same namespace
+    - from:
+        - podSelector:
+            matchLabels:
+              app: bookstore-ui
+      ports:
+        - protocol: TCP
+          port: 5000
+
+    # Accept health-check probes from the kubelet (node-level, no podSelector)
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8     # block pod-to-pod except explicit allow above
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 5000
+
+  egress:
+    # DNS — homelab CoreDNS resolver on control plane (session 12: 192.168.1.248)
+    - to:
+        - ipBlock:
+            cidr: 192.168.1.248/32
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    # DNS fallback — in-cluster kube-dns (CoreDNS in kube-system)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
