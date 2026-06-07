@@ -33,6 +33,12 @@ A full-stack bookstore web application built as a DevOps project. The project fo
   - [Run the Container Locally](#run-the-container-locally-1)
   - [Tag and Push to GHCR](#tag-and-push-to-ghcr-1)
   - [Pull and Run Image from GHCR](#pull-and-run-image-from-ghcr-1)
+- [Deploy Frontend UI and Backend API in Kubernetes](#deploy-frontend-ui-and-backend-api-in-kubernetes)
+  - [Kubernetes Security and Hardening](#kubernetes-security-and-hardening)
+  - [Manifest Structure](#manifest-structure)
+  - [Deploy Application Backend API](#deploy-application-backend-api)
+  - [Deploy Application Frontend UI](#deploy-application-frontend-ui)
+  - [Real-World Operations](#real-world-operations)
 
 ---
 
@@ -274,7 +280,7 @@ docker image ls
 
 ```
 REPOSITORY       TAG      IMAGE ID        CREATED           PLATFORM       SIZE       BLOB SIZE
-bookstore-api    1.0.0    2dd9e2d7c16b    2 minutes ago     linux/amd64    171.1MB    55.07MB
+bookstore-api    1.0.0    <image-id>      2 minutes ago     linux/amd64    171.1MB    55.07MB
 ```
 
 ---
@@ -324,8 +330,8 @@ docker image ls
 
 ```bash
 REPOSITORY                              TAG      IMAGE ID        CREATED           PLATFORM       SIZE       BLOB SIZE
-ghcr.io/joneskwameosei/bookstore-api    1.0.0    2dd9e2d7c16b    41 minutes ago    linux/amd64    171.1MB    55.07MB
-bookstore-api                           1.0.0    2dd9e2d7c16b    2 hours ago       linux/amd64    171.1MB    55.07MB
+ghcr.io/joneskwameosei/bookstore-api    1.0.0    <image-id>      41 minutes ago    linux/amd64    171.1MB    55.07MB
+bookstore-api                           1.0.0    <image-id>      2 hours ago       linux/amd64    171.1MB    55.07MB
 ```
 
 Push to GHCR:
@@ -367,7 +373,7 @@ Pull image:
 docker image pull ghcr.io/joneskwameosei/bookstore-api:1.0.0
 ```
 
-![pulled-image](images/pulled-image.png)
+Confirm image is pulled successfully:
 
 ```bash
 docker image ls -q | wc -l
@@ -380,7 +386,7 @@ docker image ls
 1
 
 REPOSITORY                              TAG      IMAGE ID        CREATED          PLATFORM       SIZE       BLOB SIZE
-ghcr.io/joneskwameosei/bookstore-api    1.0.0    2dd9e2d7c16b    4 minutes ago    linux/amd64    171.1MB    55.07MB
+ghcr.io/joneskwameosei/bookstore-api    1.0.0    <image-id>      4 minutes ago    linux/amd64    171.1MB    55.07MB
 ```
 
 Run pulled image:
@@ -409,8 +415,8 @@ docker container ls
 
 ```bash
 
-CONTAINER ID    IMAGE                                         COMMAND                   CREATED          STATUS    PORTS    NAMES
-cab61cf8d0d7    ghcr.io/joneskwameosei/bookstore-api:1.0.0    "gunicorn --bind 0.0…"    2 minutes ago    Up                 bookstore-api
+CONTAINER ID      IMAGE                                         COMMAND                   CREATED          STATUS    PORTS    NAMES
+<container-id>    ghcr.io/joneskwameosei/bookstore-api:1.0.0    "gunicorn --bind 0.0…"    2 minutes ago    Up                 bookstore-api
 ```
 
 ## Containerise Frontend UI
@@ -497,13 +503,11 @@ docker container ls
 App is healthy:
 
 ```bash
-ONTAINER ID    IMAGE                                         COMMAND                   CREATED          STATUS    PORTS    NAMES
-0156df522dftfd    docker.io/library/bookstore-ui:1.0.0          "/docker-entrypoint.…"    5 minutes ago    Up                 bookstore-ui
+CONTAINER ID      IMAGE                                          COMMAND                   CREATED          STATUS    PORTS    NAMES
+<container-id>    docker.io/library/bookstore-ui:1.0.0           "/docker-entrypoint.…"    5 minutes ago    Up                 bookstore-ui
 ```
 
 > **Note on networking:** As with the API, we will utilise `--network host` on this Cilium node. The UI runs on port **8080** (nginx configured as non-root — port 80 requires root).
-
-![ui-local](images/run-ui-locally.png)
 ---
 
 ### Tag and Push to GHCR
@@ -601,4 +605,327 @@ CONTAINER ID    IMAGE                                        COMMAND            
 <id>     ghcr.io/joneskwameosei/bookstore-ui:1.0.0    "/docker-entrypoint.…"    About a minute ago              Up            bookstore-ui
 ```
 
-## Deploying Frontend UI and Backend API in Kubernetes
+## Deploy Frontend UI and Backend API in Kubernetes
+
+This session deploys the containerised applications to Kubernetes. Manifest files describe the desired state — Kubernetes reconciles reality to match, providing automated rollouts, rollbacks, self-healing, and scaling out of the box.
+
+The homelab cluster runs **Kyverno** (admission policies), **Falco** (runtime threat detection), and **Trivy** (image scanning). Every manifest in this project is built to satisfy all three.
+
+---
+
+### Kubernetes Security and Hardening
+
+Security is layered across three levels: namespace, pod/container, and network.
+
+#### Namespace — Pod Security Standards
+
+The `bookstore` namespace enforces the **PSS Restricted** profile as a second layer of defence behind Kyverno. If a Kyverno admission policy is bypassed, the namespace admission controller rejects the pod independently.
+
+```yaml
+# k8s/namespace.yaml
+pod-security.kubernetes.io/enforce: restricted
+pod-security.kubernetes.io/audit: restricted
+pod-security.kubernetes.io/warn: restricted
+```
+
+#### Kyverno Admission Policies
+
+Six cluster-wide Kyverno policies are enforced in `Enforce` mode. Every manifest satisfies all of them:
+
+| Kyverno Policy | Requirement | How it is met |
+|----------------|-------------|---------------|
+| `disallow-latest-tag` | Image tag must not be `:latest` | `bookstore-api:1.0.0`, `bookstore-ui:1.0.0` |
+| `disallow-root-containers` | `runAsNonRoot: true` | Set at both pod and container level |
+| `require-resource-limits` | CPU and memory limits required | `limits: cpu / memory` on every container |
+| `disallow-privilege-escalation` | `allowPrivilegeEscalation: false` | Set on every container |
+| `disallow-privileged-containers` | `privileged: false` | Set on every container |
+| `require-drop-all-capabilities` | `capabilities.drop: [ALL]` | Set on every container |
+
+#### Pod and Container Hardening
+
+Beyond the six Kyverno policies, additional hardening is applied on every pod:
+
+| Setting | Value | Reason |
+|---------|-------|--------|
+| `seccompProfile.type` | `RuntimeDefault` | PSS Restricted requirement; the container runtime's default seccomp profile filters dangerous syscalls |
+| `readOnlyRootFilesystem` | `true` | Falco alerts on unexpected filesystem writes; a read-only root prevents malware from persisting to the container layer |
+| `automountServiceAccountToken` | `false` | Neither service communicates with the Kubernetes API — mounting the token is unnecessary credential exposure |
+| `emptyDir` at `/tmp` | Ephemeral, in-memory | Provides writable scratch space for gunicorn (API) and nginx (UI) without relaxing the root filesystem |
+| `emptyDir` at `/var/cache/nginx` | Ephemeral, in-memory | nginx writes proxy and client-body temp files here; must be writable |
+
+#### Network Policies
+
+A **default-deny-all** `NetworkPolicy` (applied in `k8s/api/bookstore-api-networkpolicy.yaml`) blocks all ingress and egress for every pod in the `bookstore` namespace. Separate allow policies then open only the minimum required paths:
+
+| Policy | Direction | Allows |
+|--------|-----------|--------|
+| `bookstore-api-allow` | Ingress | Traffic from pods labelled `app: bookstore-ui` on port 5000 |
+| `bookstore-api-allow` | Egress | DNS to homelab CoreDNS (`192.168.1.248:53`) and in-cluster `kube-dns` |
+| `bookstore-ui-allow` | Ingress | Traffic on port 8080 (MetalLB gateway / ingress controller) |
+| `bookstore-ui-allow` | Egress | API pods on port 5000; DNS to `192.168.1.248:53` and `kube-dns` |
+
+DNS egress covers both the **homelab CoreDNS resolver at `192.168.1.248`** (for LAN hostname resolution) and **in-cluster `kube-dns`** (for `*.svc.cluster.local` service discovery).
+
+---
+
+### Manifest Structure
+
+```
+k8s/
+├── namespace.yaml                           # bookstore namespace with PSS Restricted labels
+├── api/
+│   ├── boosktore-api-deployment.yaml        # API Deployment — all 6 Kyverno policies satisfied
+│   ├── bookstore-api-service.yaml           # ClusterIP — internal traffic only
+│   └── bookstore-api-networkpolicy.yaml     # default-deny-all + API-specific allow rules
+└── ui/
+    ├── bookstore-ui-deployment.yaml         # UI Deployment — nginx non-root, Kyverno compliant
+    ├── bookstore-ui-service.yaml            # LoadBalancer — MetalLB assigns external IP
+    └── bookstore-ui-networkpolicy.yaml      # UI allow rules (ingress + API egress + DNS)
+```
+
+---
+
+### Deploy Application Backend API
+
+Apply the namespace first, then the API manifests:
+
+```bash
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/api/
+```
+
+Watch the rollout complete:
+
+```bash
+kubectl rollout status deployment/bookstore-api -n bookstore
+```
+
+```
+Waiting for deployment "bookstore-api" rollout to finish: 0 of 1 updated replicas are available...
+deployment "bookstore-api" successfully rolled out
+```
+
+Verify the pod is healthy:
+
+```bash
+kubectl get pods -n bookstore -l app=bookstore-api
+```
+
+```
+NAME                             READY   STATUS    RESTARTS   AGE
+bookstore-api-6d9f7b8c4d-x2kpt   1/1     Running   0          45s
+```
+
+Confirm the service is reachable within the cluster:
+
+```bash
+kubectl get svc -n bookstore
+```
+
+```
+NAME            TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
+bookstore-api   ClusterIP   10.96.142.18    <none>        5000/TCP   50s
+```
+
+---
+
+### Deploy Application Frontend UI
+
+```bash
+kubectl apply -f k8s/ui/
+```
+
+```bash
+kubectl rollout status deployment/bookstore-ui -n bookstore
+```
+
+```
+deployment "bookstore-ui" successfully rolled out
+```
+
+MetalLB will assign an external IP to the `LoadBalancer` service. Check when it is ready:
+
+```bash
+kubectl get svc bookstore-ui -n bookstore -w
+```
+
+```
+NAME           TYPE           CLUSTER-IP     EXTERNAL-IP      PORT(S)        AGE
+bookstore-ui   LoadBalancer   10.96.55.201   192.168.1.221    80:32410/TCP   30s
+```
+
+The application is now accessible at `http://192.168.1.221` from anywhere on the LAN.
+
+Verify all pods are running:
+
+```bash
+kubectl get pods -n bookstore
+```
+
+```
+NAME                              READY   STATUS    RESTARTS   AGE
+bookstore-api-6d9f7b8c4d-x2kpt    1/1     Running   0          3m
+bookstore-ui-7f5b9d6c8b-p4qrn     1/1     Running   0          45s
+```
+
+---
+
+### Real-World Operations
+
+#### View logs
+
+```bash
+# Tail last 50 lines from the API
+kubectl logs -n bookstore -l app=bookstore-api --tail=50
+
+# Tail last 50 lines from the UI
+kubectl logs -n bookstore -l app=bookstore-ui --tail=50
+
+# Stream logs live
+kubectl logs -n bookstore -l app=bookstore-api -f
+```
+
+#### Inspect a pod
+
+```bash
+kubectl describe pod -n bookstore -l app=bookstore-api
+```
+
+The `Events:` section at the bottom reveals scheduling failures, image pull errors, probe failures, and OOMKill events — the first place to look when a pod is not starting.
+
+#### Port-forward for local access
+
+When you want to hit a service directly without going through the load balancer — useful for debugging a specific replica:
+
+```bash
+# API
+kubectl port-forward -n bookstore svc/bookstore-api 5000:5000
+
+# UI
+kubectl port-forward -n bookstore svc/bookstore-ui 8080:80
+```
+
+Then open `http://localhost:5000/api/categories` or `http://localhost:8080`.
+
+#### Scale a deployment
+
+```bash
+kubectl scale deployment bookstore-api -n bookstore --replicas=3
+```
+
+```bash
+kubectl get pods -n bookstore -l app=bookstore-api
+```
+
+```
+NAME                             READY   STATUS    RESTARTS   AGE
+bookstore-api-6d9f7b8c4d-x2kpt   1/1     Running   0          5m
+bookstore-api-6d9f7b8c4d-r7ms2   1/1     Running   0          12s
+bookstore-api-6d9f7b8c4d-wt9pq   1/1     Running   0          12s
+```
+
+#### Rolling update — deploy a new image version
+
+Update the image tag. Kubernetes performs a rolling update with zero downtime by default — new pods are started before old ones are terminated.
+
+```bash
+kubectl set image deployment/bookstore-api \
+  bookstore-api=ghcr.io/joneskwameosei/bookstore-api:1.1.0 \
+  -n bookstore
+```
+
+Watch the rollout progress:
+
+```bash
+kubectl rollout status deployment/bookstore-api -n bookstore -w
+```
+
+```
+Waiting for deployment "bookstore-api" rollout to finish: 1 old replicas are pending termination...
+deployment "bookstore-api" successfully rolled out
+```
+
+#### Rollback to the previous version
+
+If a release is bad, roll back instantly to the previous known-good state:
+
+```bash
+kubectl rollout undo deployment/bookstore-api -n bookstore
+```
+
+View the full rollout history:
+
+```bash
+kubectl rollout history deployment/bookstore-api -n bookstore
+```
+
+```
+REVISION  CHANGE-CAUSE
+1         <none>
+2         <none>
+```
+
+#### Check resource usage
+
+Requires `metrics-server` to be installed on the cluster:
+
+```bash
+kubectl top pods -n bookstore
+```
+
+```
+NAME                              CPU(cores)   MEMORY(bytes)
+bookstore-api-6d9f7b8c4d-x2kpt   8m           45Mi
+bookstore-ui-7f5b9d6c8b-p4qrn    2m           12Mi
+```
+
+#### Exec into a running pod
+
+For interactive debugging when logs are not enough:
+
+```bash
+# Get a shell in the API pod
+kubectl exec -it -n bookstore \
+  $(kubectl get pod -n bookstore -l app=bookstore-api -o name | head -1) \
+  -- /bin/sh
+
+# Get a shell in the UI pod
+kubectl exec -it -n bookstore \
+  $(kubectl get pod -n bookstore -l app=bookstore-ui -o name | head -1) \
+  -- /bin/sh
+```
+
+Both images ship with `/bin/sh` — `python:3.13-slim` (API) and `nginx:1.27-alpine` (UI).
+
+#### Check recent cluster events
+
+```bash
+kubectl get events -n bookstore --sort-by='.lastTimestamp'
+```
+
+Useful for diagnosing failed probes, OOMKills, image pull backoffs, or Kyverno policy violations without having to describe individual pods.
+
+#### Verify security policy compliance
+
+Kyverno generates `PolicyReport` resources you can query directly:
+
+```bash
+kubectl get policyreport -n bookstore
+```
+
+```
+NAME                          PASS   FAIL   WARN   ERROR   SKIP   AGE
+cpol-disallow-latest-tag      2      0      0      0       0      10m
+cpol-require-resource-limits  2      0      0      0       0      10m
+```
+
+#### Tear down
+
+```bash
+# Remove workloads only, keep the namespace
+kubectl delete -f k8s/api/
+kubectl delete -f k8s/ui/
+
+# Remove everything including the namespace
+kubectl delete namespace bookstore
+```
