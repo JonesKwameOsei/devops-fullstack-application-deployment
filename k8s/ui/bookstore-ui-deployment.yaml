@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bookstore-ui
+  namespace: bookstore
+  labels:
+    app: bookstore-ui
+    component: frontend
+    version: "1.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bookstore-ui
+  template:
+    metadata:
+      labels:
+        app: bookstore-ui
+        component: frontend
+        version: "1.0.0"
+    spec:
+      automountServiceAccountToken: false
+
+      securityContext:
+        runAsNonRoot: true          # Kyverno: disallow-root-containers
+        runAsUser: 101              # nginx user UID in nginx:1.27-alpine
+        runAsGroup: 101
+        seccompProfile:             # PSS Restricted: required seccomp profile
+          type: RuntimeDefault
+
+      containers:
+        - name: bookstore-ui
+          image: ghcr.io/joneskwameosei/bookstore-ui:1.0.1   # Kyverno: disallow-latest-tag
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+
+          # Kyverno: require-resource-limits
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+
+          securityContext:
+            runAsNonRoot: true                    # Kyverno: disallow-root-containers
+            allowPrivilegeEscalation: false       # Kyverno: disallow-privilege-escalation
+            privileged: false                     # Kyverno: disallow-privileged-containers
+            readOnlyRootFilesystem: true          # Falco: prevents writes outside mounts
+            capabilities:
+              drop:
+                - ALL                             # Kyverno: require-drop-all-capabilities
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          volumeMounts:
+            # readOnlyRootFilesystem: nginx writes temp files and PID to /tmp
+            - name: tmp
+              mountPath: /tmp
+            # nginx uses /var/cache/nginx for proxy and client body temp files
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: nginx-cache
+          emptyDir: {}
+
+      # Uncomment once the GHCR package is set to private:
+      # imagePullSecrets:
+      #   - name: ghcr-credentials

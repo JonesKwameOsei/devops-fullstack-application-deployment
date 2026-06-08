@@ -860,7 +860,7 @@ kubectl get svc bookstore-ui -n bookstore -w
 
 ```
 NAME           TYPE           CLUSTER-IP     EXTERNAL-IP      PORT(S)        AGE
-bookstore-ui   LoadBalancer   10.96.55.201   192.168.1.221    80:32410/TCP   30s
+bookstore-ui   LoadBalancer   **.**.**.**    **.**.**.**    80:32410/TCP     30s
 ```
 
 The application is now accessible at `http://192.168.1.221` from anywhere on the LAN.
@@ -877,9 +877,25 @@ bookstore-api-6d9f7b8c4d-x2kpt    1/1     Running   0          3m
 bookstore-ui-7f5b9d6c8b-p4qrn     1/1     Running   0          45s
 ```
 
+Verify all depolyments:
+
+```bash
+kubectl get deploy -n bookstore
+```
+
+```
+NAME            READY   UP-TO-DATE   AVAILABLE   AGE
+bookstore-api   1/1     1            1           5m
+bookstore-ui    1/1     1            1           2m15s
+```
+
+Access application on the brouser
+
+![k8s-deployment](images/k8s-deplyment.png)
+
 ---
 
-### Real-World Operations
+### K8s Operations or Troubleshooting
 
 #### View logs
 
@@ -984,8 +1000,8 @@ kubectl top pods -n bookstore
 
 ```
 NAME                              CPU(cores)   MEMORY(bytes)
-bookstore-api-6d9f7b8c4d-x2kpt   8m           45Mi
-bookstore-ui-7f5b9d6c8b-p4qrn    2m           12Mi
+bookstore-api-6d9f7b8c4d-x2kpt   1m           66Mi
+bookstore-ui-7f5b9d6c8b-p4qrn    1m           4Mi
 ```
 
 #### Exec into a running pod

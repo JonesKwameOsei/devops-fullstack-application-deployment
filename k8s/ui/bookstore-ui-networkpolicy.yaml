@@ -1,0 +1,56 @@
+# Allow the UI pod to receive external traffic on port 8080 and reach the API on port 5000.
+# The default-deny-all policy in bookstore-api-networkpolicy.yaml already blocks everything
+# else in the namespace — this policy opens only the minimum required paths for the UI.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: bookstore-ui-allow
+  namespace: bookstore
+spec:
+  podSelector:
+    matchLabels:
+      app: bookstore-ui
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    # Accept HTTP traffic from the MetalLB gateway and any upstream ingress controller.
+    # The UI is the public entry point — source restriction is handled at the LB/firewall layer.
+    - ports:
+        - protocol: TCP
+          port: 8080
+
+  egress:
+    # Reach the API pods within the same namespace on port 5000
+    - to:
+        - podSelector:
+            matchLabels:
+              app: bookstore-api
+      ports:
+        - protocol: TCP
+          port: 5000
+
+    # DNS — homelab CoreDNS resolver on control plane (192.168.1.248)
+    - to:
+        - ipBlock:
+            cidr: 192.168.1.248/32
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    # DNS fallback — in-cluster kube-dns (CoreDNS in kube-system)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
