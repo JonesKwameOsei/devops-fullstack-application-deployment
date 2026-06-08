@@ -24,12 +24,15 @@ spec:
 
       securityContext:
         runAsNonRoot: true          # Kyverno: disallow-root-containers
+        runAsUser: 10001            # Numeric UID for appuser
+        runAsGroup: 10001
+        fsGroup: 10001
         seccompProfile:             # PSS Restricted: required seccomp profile
           type: RuntimeDefault
 
       containers:
         - name: bookstore-api
-          image: ghcr.io/joneskwameosei/bookstore-api:1.0.0   # Kyverno: disallow-latest-tag
+          image: ghcr.io/joneskwameosei/bookstore-api:1.0.1   # Kyverno: disallow-latest-tag
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
