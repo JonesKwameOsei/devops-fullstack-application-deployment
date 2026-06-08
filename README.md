@@ -653,6 +653,106 @@ Beyond the six Kyverno policies, additional hardening is applied on every pod:
 | `emptyDir` at `/tmp` | Ephemeral, in-memory | Provides writable scratch space for gunicorn (API) and nginx (UI) without relaxing the root filesystem |
 | `emptyDir` at `/var/cache/nginx` | Ephemeral, in-memory | nginx writes proxy and client-body temp files here; must be writable |
 
+#### Image Signature Verification (Cosign + Kyverno)
+
+A seventh Kyverno policy — `verify-image-signatures` — ensures only images **signed with Cosign** can run in the cluster. Without image signing, a compromised or tampered image that passes CVE scanning would still be admitted. This policy closes that gap by cryptographically verifying provenance at admission time.
+
+| Component | State |
+|-----------|-------|
+| Cosign CLI | Installed locally and on control plane |
+| Key pair | `cosign.key` (private, never committed) + `cosign.pub` (public) |
+| Public key in cluster | Secret `cosign-pub-key` in `kyverno` namespace |
+| Kyverno policy | `verify-image-signatures` — **Enforce** mode |
+| Target images | `ghcr.io/joneskwameosei/*` |
+
+**Initial deployment blocked:**
+
+When the API deployment was first applied, the Kyverno mutation webhook rejected it:
+
+```
+Error from server: error when creating "k8s/api/boosktore-api-deployment.yaml":
+  admission webhook "mutate.kyverno.svc-fail" denied the request:
+  resource Deployment/bookstore/bookstore-api was blocked due to the following policies
+
+verify-image-signatures:
+  autogen-verify-cosign-signature: 'failed to verify image
+  ghcr.io/joneskwameosei/bookstore-api:1.0.0:
+  .attestors[0].entries[0].keys: Get "https://ghcr.io/v2/":
+  dial tcp: lookup ghcr.io: i/o timeout'
+```
+
+Two root causes were identified:
+
+1. **Image not signed** — the image had been manually built and pushed to GHCR but was never signed with Cosign, so no signature existed for Kyverno to verify.
+2. **Transient network issue** — the Kyverno admission controller pod could not reach `ghcr.io` to fetch the signature (DNS `i/o timeout`), causing the webhook to fail closed.
+
+**Resolution:**
+
+1. Authenticated Cosign to GHCR (nerdctl stores credentials separately from `~/.docker/config.json`, so `cosign login` was required):
+
+   ```bash
+   echo "$PAT" | cosign login ghcr.io -u JonesKwameOsei --password-stdin
+   ```
+
+2. Signed the image with the private key:
+
+   ```bash
+   cosign sign --key cosign.key ghcr.io/joneskwameosei/bookstore-api:1.0.1
+   ```
+
+3. Verified the signature locally:
+
+   ```bash
+   cosign verify --key cosign.pub ghcr.io/joneskwameosei/bookstore-api:1.0.1
+   ```
+
+   ```
+   The following checks were performed on each of these signatures:
+     - The cosign claims were validated
+     - Existence of the claims in the transparency log was verified offline
+     - The signatures were verified against the specified public key
+   ```
+
+4. Restarted the Kyverno admission controller to clear the transient DNS issue:
+
+   ```bash
+   kubectl rollout restart deployment -n kyverno kyverno-admission-controller
+   ```
+
+5. Redeployed — the signed image was admitted successfully:
+
+   ```bash
+   kubectl apply -f k8s/api/
+   ```
+
+   ```
+   deployment.apps/bookstore-api created
+   ```
+
+6. Switched the policy from Audit to **Enforce** mode:
+
+   ```bash
+   kubectl patch clusterpolicy verify-image-signatures \
+     --type merge -p '{"spec":{"validationFailureAction":"Enforce"}}'
+   ```
+
+**Current state — all seven Kyverno policies enforced:**
+
+```
+NAME                             ACTION    READY
+disallow-latest-tag              Enforce   True
+disallow-privilege-escalation    Enforce   True
+disallow-privileged-containers   Enforce   True
+disallow-root-containers         Enforce   True
+require-drop-all-capabilities    Enforce   True
+require-resource-limits          Enforce   True
+verify-image-signatures          Enforce   True
+```
+
+Any unsigned image targeting `ghcr.io/joneskwameosei/*` is now **rejected at admission** — the cluster only runs images with verified provenance.
+
+---
+
 #### Network Policies
 
 A **default-deny-all** `NetworkPolicy` (applied in `k8s/api/bookstore-api-networkpolicy.yaml`) blocks all ingress and egress for every pod in the `bookstore` namespace. Separate allow policies then open only the minimum required paths:
@@ -694,6 +794,15 @@ kubectl apply -f k8s/namespace.yaml
 kubectl apply -f k8s/api/
 ```
 
+**Namespace created**
+
+```bash
+namespace/bookstore created
+deployment.apps/bookstore-api created
+```
+
+
+
 Watch the rollout complete:
 
 ```bash
@@ -724,7 +833,7 @@ kubectl get svc -n bookstore
 
 ```
 NAME            TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
-bookstore-api   ClusterIP   10.96.142.18    <none>        5000/TCP   50s
+bookstore-api   ClusterIP   <cluster_IP>    <none>        5000/TCP   50s
 ```
 
 ---
