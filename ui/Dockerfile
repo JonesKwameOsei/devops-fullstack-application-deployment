@@ -38,7 +38,7 @@ COPY --from=builder --chown=nginx:nginx /app/build /usr/share/nginx/html
 
 # Drop to non-root before the process starts (sysdig 1.2 / 1.3)
 # nginx user (uid 101) is pre-created in the nginx:alpine image
-USER nginx
+USER 101
 
 # Port matches the listen directive in nginx.conf (non-privileged, no root needed)
 EXPOSE 8080

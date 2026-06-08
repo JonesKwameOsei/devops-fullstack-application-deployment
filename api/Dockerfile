@@ -49,8 +49,8 @@ COPY --from=builder /opt/venv /opt/venv
 COPY --chown=root:root main.py .
 
 # Create a non-root system user with no login shell (sysdig 1.2 / 1.3)
-RUN groupadd --system appgroup && \
-    useradd --system --gid appgroup --no-create-home --shell /usr/sbin/nologin appuser
+RUN groupadd --system --gid 10001 appgroup && \
+    useradd --system --uid 10001 --gid appgroup --no-create-home --shell /usr/sbin/nologin appuser
 
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -65,7 +65,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     || exit 1
 
 # Drop to non-root before the process starts (sysdig 1.2)
-USER appuser
+USER 10001
 
 # Use gunicorn — flask's built-in server is not safe for production
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "60", "main:app"]
